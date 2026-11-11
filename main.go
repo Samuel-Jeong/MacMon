@@ -344,7 +344,7 @@ func main() {
 		snapshot(*snap)
 		return
 	}
-	if f := os.Getenv("MACCPU_CPUPROFILE"); f != "" {
+	if f := os.Getenv("MACMON_CPUPROFILE"); f != "" {
 		out, err := os.Create(f)
 		if err == nil {
 			pprof.StartCPUProfile(out)

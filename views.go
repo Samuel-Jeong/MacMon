@@ -89,7 +89,7 @@ func (m model) viewHeader(W int) string {
 	if m.info.E.Count == 0 {
 		spec = fmt.Sprintf("  ·  코어 %d개", m.info.Logical)
 	}
-	left := sTitle.Render("◆ MAC CPU") + "  " + sBold.Render(m.info.Model) + sMuted.Render(spec)
+	left := sTitle.Render("◆ MacMon") + "  " + sBold.Render(m.info.Model) + sMuted.Render(spec)
 	line1 := spread(left, sMuted.Render(m.now.Format("15:04:05")), W)
 
 	var tabs []string

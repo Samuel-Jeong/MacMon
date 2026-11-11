@@ -1,145 +1,178 @@
-# maccpu
+```text
+      ┃  ┃  ┃  ┃  ┃  ┃  ┃  ┃  ┃  ┃  ┃  ┃  ┃  ┃  ┃  ┃  ┃  ┃  ┃  ┃  ┃  ┃
+    ┏━┻━━┻━━┻━━┻━━┻━━┻━━┻━━┻━━┻━━┻━━┻━━┻━━┻━━┻━━┻━━┻━━┻━━┻━━┻━━┻━━┻━━┻━━━┓
+  ━━┫                                                                    ┣━━
+  ━━┫   ███╗   ███╗  █████╗   ██████╗ ███╗   ███╗  ██████╗  ███╗   ██╗   ┣━━
+  ━━┫   ████╗ ████║ ██╔══██╗ ██╔════╝ ████╗ ████║ ██╔═══██╗ ████╗  ██║   ┣━━
+  ━━┫   ██╔████╔██║ ███████║ ██║      ██╔████╔██║ ██║   ██║ ██╔██╗ ██║   ┣━━
+  ━━┫   ██║╚██╔╝██║ ██╔══██║ ██║      ██║╚██╔╝██║ ██║   ██║ ██║╚██╗██║   ┣━━
+  ━━┫   ██║ ╚═╝ ██║ ██║  ██║ ╚██████╗ ██║ ╚═╝ ██║ ╚██████╔╝ ██║ ╚████║   ┣━━
+  ━━┫   ╚═╝     ╚═╝ ╚═╝  ╚═╝  ╚═════╝ ╚═╝     ╚═╝  ╚═════╝  ╚═╝  ╚═══╝   ┣━━
+  ━━┫                                                                    ┣━━
+  ━━┫   P  ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━╸┄┄┄┄┄┄┄┄  78%  performance  ┣━━
+  ━━┫   E  ━━━━━━━━━━━━━╸┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄  31%  efficiency   ┣━━
+  ━━┫                                                                    ┣━━
+  ━━┫   ▆▇▇▇▆▆▅▅▅▅▅▅▅▄▃▂▁▁▂▄▅▇███▇▆▄▄▄▄▄▄▄▄▃▂▂▂▃▄▆▇███▇▅▄▃▂▂▃▃▄▄▄▄▃▃▄▅   ┣━━
+  ━━┫                                                                    ┣━━
+    ┗━┳━━┳━━┳━━┳━━┳━━┳━━┳━━┳━━┳━━┳━━┳━━┳━━┳━━┳━━┳━━┳━━┳━━┳━━┳━━┳━━┳━━┳━━━┛
+      ┃  ┃  ┃  ┃  ┃  ┃  ┃  ┃  ┃  ┃  ┃  ┃  ┃  ┃  ┃  ┃  ┃  ┃  ┃  ┃  ┃  ┃
 
-Apple Silicon 맥의 CPU 코어, 메모리, 프로세스 사용 현황을 터미널에서 보는 도구입니다.
-성능(P) 코어와 효율(E) 코어를 나눠 보여 주고, 프로세스마다 어느 쪽 코어를 얼마나 쓰는지까지 보여 줍니다.
-sudo 없이 돌아갑니다.
+           P-core / E-core aware system monitor for Apple Silicon
+```
 
-## 준비물
+# MacMon
 
-- Apple Silicon 맥 (M1 이후). M3 Max · macOS 27.2 에서 확인했습니다.
-- Go 1.26 이상
-- Xcode 명령행 도구 (`xcode-select --install`). macOS API 를 cgo 로 부르기 때문에 필요합니다.
+MacMon is a terminal monitor for Apple Silicon Macs. It shows CPU cores, memory, and processes,
+splits everything into performance (P) and efficiency (E) cores, and tells you how much of each
+process runs on which kind of core. It runs without `sudo`.
 
-## 빌드와 실행
+> The on-screen labels are in Korean.
+
+## Requirements
+
+- An Apple Silicon Mac (M1 or later). Tested on an M3 Max with macOS 27.2.
+- Go 1.26 or later
+- Xcode Command Line Tools (`xcode-select --install`). MacMon calls macOS APIs through cgo.
+
+## Build and run
 
 ```bash
-go build -o maccpu .
+go build -o macmon .
 ```
 
 ```bash
-./maccpu
+./macmon
 ```
 
-root 소유 프로세스(약 200개)까지 보려면 sudo 로 실행합니다.
+To include processes owned by root and other users (about 200 on a typical system), run it with `sudo`:
 
 ```bash
-sudo ./maccpu
+sudo ./macmon
 ```
 
-## 화면
+## Screens
 
-`tab` 이나 숫자 키로 세 화면을 오갑니다.
+Switch screens with `tab` or the number keys.
 
-| 화면 | 보여 주는 것 |
+| Screen | What it shows |
 |---|---|
-| 1 개요 | 전체 CPU 사용률과 최근 그래프, 코어별 사용률 · 주파수, 메모리(앱 · 고정 · 압축 · 캐시 · 여유), 스왑, 메모리 압박, CPU 를 많이 쓰는 프로세스 |
-| 2 코어 | 칩 사양(L1 · L2 캐시, 주파수 범위와 단계 수), 클러스터별 코어의 사용자 · 시스템 사용률, 현재 주파수, 최근 이력 |
-| 3 프로세스 | 모든 프로세스의 CPU · P 코어 · E 코어 사용률, P/E 사용량 막대, 스레드, 메모리, 전력. 고른 프로세스의 누적 P/E 비율, QoS 분포, IPC |
+| 1 Overview | Total CPU usage with a recent history graph, per-core usage and frequency, memory (app · wired · compressed · cached · free), swap, memory pressure, and the top CPU consumers |
+| 2 Cores | Chip specs (L1/L2 cache, frequency range and number of steps), and for each cluster: per-core user/system usage, current frequency, and recent history |
+| 3 Processes | Every process with CPU, P-core and E-core usage, a P/E usage bar, threads, memory, and power. The selected process also shows its lifetime P/E split, QoS breakdown, and IPC |
 
-화면은 터미널 폭 전체를 씁니다. 폭이 모자라면 프로세스 표에서 사용자 → 전력 → 스레드 열 순서로 빼고, 그래도 모자랄 때만 이름 끝을 줄입니다.
+MacMon uses the full width of the terminal. When the window is too narrow, the process table drops
+the user, power, and thread columns first, and only shortens process names as a last resort.
 
-## 키
+## Keys
 
-| 키 | 하는 일 |
+| Key | Action |
 |---|---|
-| `tab` · `shift+tab` · `←` `→` | 화면 전환 |
-| `1` `2` `3` | 해당 화면으로 바로 이동 |
-| `↑` `↓` (`k` `j`) | 프로세스 선택, 다른 화면에서는 스크롤 |
-| `PgUp` `PgDn` · `Home` `End` | 한 쪽씩 · 처음과 끝으로 이동 |
-| `s` · `S` | 정렬 기준 바꾸기 (CPU → P 코어 → E 코어 → 메모리 → 전력 → PID → 이름) |
-| `c` | CPU% 단위 바꾸기 (코어 1개 기준 ↔ 맥 전체 기준) |
-| `a` | 부드러운 움직임 켜기 · 끄기 |
-| `p` · `space` | 일시정지 |
-| `+` · `-` | 갱신 주기 늘리기 · 줄이기 (0.25 · 0.5 · 1 · 2 · 5초, 기본 1초) |
-| `q` · `esc` | 종료 |
+| `tab` · `shift+tab` · `←` `→` | Switch screens |
+| `1` `2` `3` | Jump to a screen |
+| `↑` `↓` (`k` `j`) | Select a process, or scroll on other screens |
+| `PgUp` `PgDn` · `Home` `End` | Move a page · jump to the first or last row |
+| `s` · `S` | Change the sort order (CPU → P-core → E-core → memory → power → PID → name) |
+| `c` | Switch the CPU% unit (one core = 100% ↔ whole Mac = 100%) |
+| `a` | Turn smooth animation on or off |
+| `p` · `space` | Pause |
+| `+` · `-` | Slower or faster refresh (0.25 · 0.5 · 1 · 2 · 5 s, default 1 s) |
+| `q` · `esc` | Quit |
 
-## 숫자 읽는 법
+## Reading the numbers
 
-**CPU%** 는 기본이 활성 상태 보기 · `top` 과 같은 「코어 1개 = 100%」입니다. 여러 코어를 쓰는 프로세스는 100% 를 넘습니다(16코어면 최대 1600%).
-`c` 를 누르면 「맥 전체 = 100%」로 바뀝니다. 지금 단위는 표 제목 오른쪽에 나옵니다.
+**CPU%** uses the same scale as Activity Monitor and `top` by default: one core = 100%. A process that
+uses several cores goes above 100% (up to 1600% on a 16-core Mac). Press `c` to switch to
+whole Mac = 100%. The current unit is shown at the top right of the process table.
 
-**P 코어 · E 코어** 는 그 프로세스가 성능 코어와 효율 코어에서 각각 쓴 CPU 입니다. 둘을 더하면 CPU% 가 됩니다.
-P/E 사용량 막대는 열 전체가 코어 1개(100%)이고, 파랑은 P 코어, 보라는 E 코어입니다.
+**P-core and E-core** show how much CPU the process used on performance and efficiency cores.
+They add up to CPU%. In the P/E usage bar, the full column width is one core (100%);
+blue is P-core time and purple is E-core time.
 
-**QoS** 는 macOS 가 작업마다 붙이는 우선순위입니다. 「백그라운드」와 「유지보수」 작업은 효율 코어에서만 돕니다.
-작업을 효율 코어로 보내려면 이렇게 실행합니다.
+**QoS** is the priority class macOS assigns to work. Background and maintenance work runs only on
+efficiency cores. To send a command to the efficiency cores, run it like this:
 
 ```bash
-taskpolicy -b <명령>
+taskpolicy -b <command>
 ```
 
-**메모리** 는 활성 상태 보기와 같은 방식으로 나눕니다. 사용 = 앱 + 고정 + 압축이고, 캐시는 필요하면 바로 비울 수 있는 메모리입니다.
+**Memory** is split the same way as in Activity Monitor: used = app + wired + compressed.
+Cached memory can be reclaimed immediately when needed.
 
-## 부드러운 움직임
+## Smooth animation
 
-숫자는 갱신 주기 동안의 평균이라 1초에 한 번만 바뀝니다.
-막대와 그래프는 CPU 를 갱신 주기의 1/4 (기본 0.25초)마다 따로 재고, 새 값까지 초당 20프레임으로 미끄러지듯 따라갑니다.
-프로세스 순서는 몇 초 평균으로 정해서 매초 순위가 뒤섞이지 않게 했습니다.
-움직임 속도는 [anim.go](anim.go) 의 `easeTau` 로 조절합니다.
+Numbers are averaged over the refresh interval, so they change only once per interval (once a second by default).
+Bars and graphs sample CPU separately every quarter of the interval (0.25 s by default) and glide
+to each new value at 20 frames per second. Process order is based on a few seconds' average, so rows
+do not jump around every second. Tune the animation speed with `easeTau` in [anim.go](anim.go).
 
-## 자체 사용량
+## Overhead
 
-1초 주기, 코어 1개 기준으로 30초 동안 잰 값입니다. 맥 전체(16코어) 기준으로는 이 값을 16으로 나눕니다.
+Measured over 30 seconds with a 1 s refresh, as a percentage of one core.
+Divide by 16 for the share of the whole Mac.
 
-| 화면 | 부드럽게 켬 | 끔 |
+| Screen | Smooth on | Smooth off |
 |---|---|---|
-| 개요 | 약 2.0% | 약 1.0% |
-| 코어 | 약 3.3% | — |
-| 프로세스 | 약 0.5% | — |
+| Overview | ~2.0% | ~1.0% |
+| Cores | ~3.3% | — |
+| Processes | ~0.5% | — |
 
-프로세스 화면에는 움직이는 막대가 없어서 애니메이션을 돌리지 않습니다. 같은 조건에서 macOS `top` 은 약 7% 를 썼습니다.
-비용 대부분은 프로세스 약 750개의 사용량 조회와 코어 주파수 조회입니다. 화면에 안 보이는 데이터는 모으지 않습니다.
+The process screen has no moving bars, so it does not run the animation. Under the same conditions,
+macOS `top` used about 7%. Most of the cost comes from reading usage for roughly 750 processes and
+reading core frequencies. Data that is not on screen is not collected.
 
-## 한계
+## Limitations
 
-- 프로세스가 지금 몇 번 코어에서 도는지는 macOS 가 공개하지 않아 보여 줄 수 없습니다. P 코어 · E 코어에서 쓴 시간까지만 보여 줍니다.
-- sudo 없이 실행하면 다른 사용자(root 등)의 프로세스는 빠집니다. 빠진 개수는 표 아래에 나옵니다.
-- 효율 코어는 macOS 가 묶음 단위로만 주파수를 알려 줘서 네 코어의 주파수가 같게 나옵니다.
-- 코어 주파수는 비공개 API(IOReport)로 읽습니다. macOS 가 바뀌면 주파수만 「읽을 수 없음」으로 나올 수 있습니다.
-- 인텔 맥에서는 확인하지 않았습니다. 코어를 한 묶음으로 보여 주고 주파수는 나오지 않을 것으로 예상합니다.
-- 시작할 때 터미널에 배경색을 묻습니다. 이 질문에 답하지 않는 터미널에서는 시작이 몇 초 늦어질 수 있습니다.
+- macOS does not expose which core a process is running on right now. MacMon shows how much time
+  each process spent on P-cores and E-cores, not individual core numbers.
+- Without `sudo`, processes owned by other users (root and so on) are left out. The table shows how many.
+- macOS reports efficiency-core frequency per cluster, so all four E-cores show the same frequency.
+- Core frequencies come from a private API (IOReport). If a future macOS changes it,
+  only the frequency fields will show as unavailable.
+- Intel Macs are untested. All cores would likely show as one group, without frequencies.
+- At startup MacMon asks the terminal for its background color. Terminals that do not answer
+  this query may delay startup by a few seconds.
 
-## 데이터 출처
+## Data sources
 
-| 값 | 얻는 곳 |
+| Value | Source |
 |---|---|
-| 코어 사용률 | `host_processor_info` (gopsutil) |
-| 코어 주파수 | IOReport `CPU Stats` / `CPU Core Performance States` 와 IORegistry `pmgr` 의 주파수 표 |
-| 칩 사양 | `sysctl hw.perflevel0.*` (성능), `hw.perflevel1.*` (효율) |
-| 프로세스 CPU · P/E 시간 · QoS · 전력 · 메모리 | `proc_pid_rusage(RUSAGE_INFO_V6)` (`ri_user_ptime`, `ri_cpu_time_qos_*`, `ri_energy_nj` 등) |
-| 프로세스 이름 · 부모 · 사용자 · 스레드 | `proc_pidpath`, `proc_pidinfo` |
-| 메모리 | `vm.page_pageable_internal_count` 등 sysctl 과 gopsutil |
+| Core usage | `host_processor_info` (gopsutil) |
+| Core frequency | IOReport `CPU Stats` / `CPU Core Performance States`, plus the frequency table in the IORegistry `pmgr` node |
+| Chip specs | `sysctl hw.perflevel0.*` (performance), `hw.perflevel1.*` (efficiency) |
+| Process CPU, P/E time, QoS, power, memory | `proc_pid_rusage(RUSAGE_INFO_V6)` (`ri_user_ptime`, `ri_cpu_time_qos_*`, `ri_energy_nj`, …) |
+| Process name, parent, user, threads | `proc_pidpath`, `proc_pidinfo` |
+| Memory | sysctl (`vm.page_pageable_internal_count`, …) and gopsutil |
 
-## 파일 구성
+## Project layout
 
-| 파일 | 내용 |
+| File | Contents |
 |---|---|
-| [main.go](main.go) | 실행 진입점, 상태와 키 처리, 갱신 주기 |
-| [views.go](views.go) | 세 화면 그리기 |
-| [render.go](render.go) | 색, 막대, 그래프, 상자 같은 그리기 도구 |
-| [anim.go](anim.go) | 부드러운 움직임, 프로세스 정렬 평균 |
-| [darwin.go](darwin.go) | macOS API 호출 (cgo): 코어 주파수, 프로세스 사용량 |
-| [stats.go](stats.go) | 칩 사양, 코어 사용률, 메모리, 가동 시간 · 부하 |
-| [bench_test.go](bench_test.go) | 수집 · 그리기 단계별 비용 측정 |
+| [main.go](main.go) | Entry point, state, key handling, refresh timing |
+| [views.go](views.go) | The three screens |
+| [render.go](render.go) | Colors, bars, graphs, boxes |
+| [anim.go](anim.go) | Smooth animation and the averaged process sort |
+| [darwin.go](darwin.go) | macOS API calls via cgo: core frequencies, process usage |
+| [stats.go](stats.go) | Chip specs, core usage, memory, uptime and load |
+| [bench_test.go](bench_test.go) | Per-stage cost benchmarks |
 
-## 개발용
+## Development
 
-세 화면을 한 번 그려 출력하고 끝냅니다. 터미널 없이 화면을 확인할 때 씁니다.
+Render all three screens once and exit, without a terminal:
 
 ```bash
-./maccpu -snapshot 120x45
+./macmon -snapshot 120x45
 ```
 
-색까지 넣으려면 앞에 `CLICOLOR_FORCE=1` 을 붙입니다.
+Add `CLICOLOR_FORCE=1` in front to keep the colors.
 
-단계별 비용을 잽니다.
+Measure the cost of each stage:
 
 ```bash
 go test -run XXX -bench . -benchmem .
 ```
 
-실행 중 CPU 프로파일을 남깁니다. `q` 로 끝내면 파일이 써집니다.
+Write a CPU profile while running. The file is written when you quit with `q`:
 
 ```bash
-MACCPU_CPUPROFILE=cpu.prof ./maccpu
+MACMON_CPUPROFILE=cpu.prof ./macmon
 ```

@@ -1,15 +1,15 @@
-# 빌드 결과물
-/maccpu
+# Build output
+/macmon
 *.test
 
-# 실행 · 테스트 중 생기는 파일
+# Profiles and test output
 *.prof
 *.out
 
 # macOS
 .DS_Store
 
-# 편집기
+# Editors
 .idea/
 .vscode/
 *.swp
