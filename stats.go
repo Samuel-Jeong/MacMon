@@ -12,10 +12,10 @@ import (
 	"golang.org/x/sys/unix"
 )
 
-// Level 은 코어 종류(성능 · 효율) 하나의 사양이다.
+// Level describes one kind of core (performance or efficiency).
 type Level struct {
 	Count      int
-	PerL2      int // 클러스터 하나의 코어 수 (L2 캐시를 같이 쓰는 묶음)
+	PerL2      int // cores per cluster (cores sharing one L2 cache)
 	L1i, L1d   uint64
 	L2         uint64
 	FMin, FMax float64 // MHz
@@ -29,8 +29,8 @@ func (l Level) Clusters() int {
 	return (l.Count + l.PerL2 - 1) / l.PerL2
 }
 
-// CPUInfo 는 칩 이름과 코어 구성이다.
-// Apple Silicon 은 논리 CPU 번호가 효율 코어(E)부터 매겨진다.
+// CPUInfo holds the chip name and core layout.
+// On Apple Silicon, logical CPU numbers start with the efficiency cores.
 type CPUInfo struct {
 	Model   string
 	Logical int
@@ -69,7 +69,7 @@ func loadCPUInfo() CPUInfo {
 	if pok && eok && p.Count+e.Count == info.Logical {
 		info.P, info.E = p, e
 	} else {
-		info.P = Level{Count: info.Logical, PerL2: info.Logical} // 인텔 맥 등: 한 묶음으로 본다
+		info.P = Level{Count: info.Logical, PerL2: info.Logical} // Intel Macs and others: treat all cores as one group
 	}
 	if initFreq() {
 		info.P.FMin, info.P.FMax, info.P.FSteps = freqRange(true)
@@ -78,10 +78,10 @@ func loadCPUInfo() CPUInfo {
 	return info
 }
 
-// IsE 는 논리 CPU i 가 효율 코어인지 알려준다.
+// IsE reports whether logical CPU i is an efficiency core.
 func (c CPUInfo) IsE(i int) bool { return i < c.E.Count }
 
-// CoreLabel 은 화면에 쓰는 코어 이름(E1, P7 …)과 클러스터 번호다.
+// CoreLabel returns the display name (E1, P7, ...) and cluster number of a core.
 func (c CPUInfo) CoreLabel(i int) (string, int) {
 	if c.IsE(i) {
 		return "E" + itoa(i+1), i / max(c.E.PerL2, 1)
@@ -92,7 +92,7 @@ func (c CPUInfo) CoreLabel(i int) (string, int) {
 
 func itoa(n int) string { return strconv.Itoa(n) }
 
-// Usage 는 한 구간 동안의 사용률(%)이다.
+// Usage is the utilization (%) over one interval.
 type Usage struct {
 	User, Sys, Total float64
 }
@@ -134,13 +134,13 @@ func (s *cpuSampler) sample() ([]Usage, Usage, error) {
 	return cores, total, nil
 }
 
-// MemInfo 는 활성 상태 보기(Activity Monitor)와 같은 방식으로 나눈 메모리 값(바이트)이다.
+// MemInfo holds memory values in bytes, split the same way as Activity Monitor.
 type MemInfo struct {
 	Total, Used                    uint64
 	App, Wired, Compressed, Cached uint64
 	Free                           uint64
 	SwapTotal, SwapUsed            uint64
-	Pressure                       int // 1 정상, 2 주의, 4 위험
+	Pressure                       int // 1 normal, 2 warning, 4 critical
 }
 
 func (m MemInfo) UsedPct() float64 {
@@ -195,7 +195,7 @@ func sampleMem() (MemInfo, error) {
 	return mi, nil
 }
 
-// SysInfo 는 가동 시간과 부하 평균이다.
+// SysInfo holds uptime and load averages.
 type SysInfo struct {
 	Uptime time.Duration
 	Load   [3]float64

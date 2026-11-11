@@ -26,8 +26,6 @@ MacMon is a terminal monitor for Apple Silicon Macs. It shows CPU cores, memory,
 splits everything into performance (P) and efficiency (E) cores, and tells you how much of each
 process runs on which kind of core. It runs without `sudo`.
 
-> The on-screen labels are in Korean.
-
 ## Requirements
 
 - An Apple Silicon Mac (M1 or later). Tested on an M3 Max with macOS 27.2.

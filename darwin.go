@@ -10,7 +10,7 @@ package main
 #include <stdlib.h>
 #include <string.h>
 
-// ---- IOReport (비공개 API, 활성 상태 보기 · powermetrics 가 쓰는 것과 같다) ----
+// ---- IOReport (private API, the same one Activity Monitor and powermetrics use) ----
 typedef struct __IOReportSubscriptionCF *IOReportSubscriptionRef;
 CFDictionaryRef IOReportCopyChannelsInGroup(CFStringRef, CFStringRef, uint64_t, uint64_t, uint64_t);
 IOReportSubscriptionRef IOReportCreateSubscription(void*, CFMutableDictionaryRef, CFMutableDictionaryRef*, uint64_t, CFTypeRef);
@@ -29,7 +29,7 @@ static CFDictionaryRef g_prev;
 static double g_ftab[2][MAXF]; // [0]=E, [1]=P, MHz
 static int g_fn[2];
 
-// pmgr 의 voltage-states 표에서 클러스터별 주파수 단계를 읽는다.
+// Read per-cluster frequency steps from the pmgr voltage-states tables.
 static void load_ftab(void) {
 	io_iterator_t it;
 	if (IOServiceGetMatchingServices(kIOMainPortDefault, IOServiceMatching("AppleARMIODevice"), &it) != KERN_SUCCESS) return;
@@ -54,7 +54,7 @@ static void load_ftab(void) {
 						if (g_ftab[k][cnt] > mx) mx = g_ftab[k][cnt];
 						cnt++;
 					}
-					double div = mx > 1e8 ? 1e6 : 1e3; // Hz 또는 kHz(M4 이후)
+					double div = mx > 1e8 ? 1e6 : 1e3; // Hz, or kHz on M4 and later
 					for (int j = 0; j < cnt; j++) g_ftab[k][j] /= div;
 					g_fn[k] = cnt;
 				}
@@ -86,8 +86,8 @@ typedef struct {
 	int kind;      // 0=E, 1=P
 	int cluster;
 	int core;
-	double mhz;    // 활성 상태에서의 평균 주파수
-	double active; // 활성 상태 비율(0~1)
+	double mhz;    // average frequency while active
+	double active; // share of time active (0-1)
 } corefreq;
 
 static int ior_sample(corefreq* out, int max) {
@@ -144,14 +144,14 @@ static int ior_sample(corefreq* out, int max) {
 	return n;
 }
 
-// ---- 프로세스 ----
+// ---- Processes ----
 typedef struct {
 	int pid, ppid, threads, ok;
 	unsigned uid;
 	char name[64];
 	uint64_t cpu_ns, pcpu_ns, energy_nj, footprint, max_footprint;
 	uint64_t instr, cycles, pcycles;
-	uint64_t qos[7]; // 기본, 유지보수, 백그라운드, 유틸리티, 레거시, 사용자 시작, 사용자 상호작용 (ns)
+	uint64_t qos[7]; // default, maintenance, background, utility, legacy, user-initiated, user-interactive (ns)
 } procraw;
 
 static double g_tb;
@@ -169,7 +169,7 @@ static int proc_list(int* pids, int cap) {
 	return n < 0 ? -1 : n;
 }
 
-// proc_usage 는 프로세스 하나의 누적 사용량을 읽는다. 권한이 없으면 0 을 돌려준다.
+// proc_usage reads cumulative usage for one process. Returns 0 if access is denied.
 static int proc_usage(int pid, procraw* p) {
 	memset(p, 0, sizeof *p);
 	p->pid = pid;
@@ -191,7 +191,7 @@ static int proc_usage(int pid, procraw* p) {
 	return 1;
 }
 
-// proc_meta 는 이름 · 부모 · 사용자를 채운다. 처음 보는 프로세스에만 부른다.
+// proc_meta fills in name, parent, and user. Called only for processes seen for the first time.
 static void proc_meta(int pid, procraw* p) {
 	struct proc_bsdshortinfo bi;
 	if (proc_pidinfo(pid, PROC_PIDT_SHORTBSDINFO, 1, &bi, sizeof bi) == sizeof bi) {
@@ -203,12 +203,12 @@ static void proc_meta(int pid, procraw* p) {
 	if (proc_name(pid, nm, sizeof nm) > 0) strncpy(p->name, nm, sizeof p->name - 1);
 }
 
-// proc_path 는 실행 파일 경로다. proc_name 은 32자에서 잘리므로 전체 이름은 여기서 얻는다.
+// proc_path returns the executable path. proc_name is cut at 32 characters, so the full name comes from here.
 static int proc_path(int pid, char* buf, int len) {
 	return proc_pidpath(pid, buf, len);
 }
 
-// proc_threads 는 스레드 수다. 비용이 커서 화면에 보이는 줄만 부른다.
+// proc_threads returns the thread count. It is expensive, so it is called only for visible rows.
 static int proc_threads(int pid) {
 	struct proc_taskinfo ti;
 	if (proc_pidinfo(pid, PROC_PIDTASKINFO, 0, &ti, sizeof ti) == sizeof ti) return ti.pti_threadnum;
@@ -225,7 +225,7 @@ import (
 	"time"
 )
 
-// ---- 주파수 ----
+// ---- Frequency ----
 
 type CoreFreq struct {
 	MHz    float64
@@ -247,7 +247,7 @@ func freqRange(isP bool) (minMHz, maxMHz float64, steps int) {
 	return float64(C.ior_fmin(k)), float64(C.ior_fmax(k)), int(C.ior_fsteps(k))
 }
 
-// sampleFreq 는 논리 CPU 순서(E 먼저, 그다음 P)대로 주파수를 돌려준다.
+// sampleFreq returns frequencies in logical CPU order (E-cores first, then P-cores).
 func sampleFreq() []CoreFreq {
 	if !freqOK {
 		return nil
@@ -264,28 +264,28 @@ func sampleFreq() []CoreFreq {
 	return out
 }
 
-// ---- 프로세스 ----
+// ---- Processes ----
 
 const maxProcs = 8192
 
-var qosNames = [7]string{"기본", "유지보수", "백그라운드", "유틸리티", "레거시", "사용자 시작", "사용자 상호작용"}
+var qosNames = [7]string{"default", "maintenance", "background", "utility", "legacy", "user-initiated", "user-interactive"}
 
 type ProcStat struct {
 	PID, PPID   int
 	Name, User  string
 	Threads     int
-	CPU         float64 // 한 코어 기준 % (여러 코어를 쓰면 100 을 넘는다)
-	PCPU, ECPU  float64 // 그중 성능 · 효율 코어에서 쓴 몫
-	SortCPU     float64 // 정렬용 평균 (anim.go)
+	CPU         float64 // percent of one core (above 100 when using several cores)
+	PCPU, ECPU  float64 // the part spent on performance and efficiency cores
+	SortCPU     float64 // averages used for sorting (anim.go)
 	SortP       float64
 	SortE       float64
-	PShare      float64 // 누적 기준 P 코어 비율(0~1)
+	PShare      float64 // lifetime share of P-core time (0-1)
 	PowerMW     float64
 	Mem, MemMax uint64
 	CPUTime     time.Duration
 	IPC         float64
 	PCycleShare float64
-	QoS         [7]float64 // 이번 구간(없으면 누적)의 QoS 별 CPU 시간 비율(0~1)
+	QoS         [7]float64 // share of CPU time per QoS class in this interval, or lifetime if idle (0-1)
 	QoSLive     bool
 }
 
@@ -302,8 +302,8 @@ type procSampler struct {
 	prevT   time.Time
 	users   map[uint32]string
 	meta    map[int]procMeta
-	denied  map[int]int      // 권한 없음 → 마지막으로 시도한 회차
-	threads map[int]thrEntry // 스레드 수 캐시
+	denied  map[int]int      // access denied -> tick of the last attempt
+	threads map[int]thrEntry // thread count cache
 	tick    int
 }
 
@@ -319,7 +319,7 @@ func newProcSampler() *procSampler {
 	}
 }
 
-// threadCount 는 스레드 수를 5회마다 한 번만 새로 읽는다.
+// threadCount refreshes a thread count at most once every 5 ticks.
 func (s *procSampler) threadCount(pid int) int {
 	if e, ok := s.threads[pid]; ok && s.tick-e.tick < 5 {
 		return e.n
@@ -341,7 +341,7 @@ func (s *procSampler) userName(uid uint32) string {
 	return n
 }
 
-// sample 은 접근할 수 있는 프로세스 목록과, 권한이 없어 못 읽은 프로세스 수를 돌려준다.
+// sample returns the readable processes and the number of processes that could not be read.
 func (s *procSampler) sample() ([]ProcStat, int) {
 	now := time.Now()
 	s.tick++
@@ -354,7 +354,7 @@ func (s *procSampler) sample() ([]ProcStat, int) {
 	denied := make(map[int]int, len(s.denied))
 	for _, cp := range s.pids[:n] {
 		pid := int(cp)
-		// 권한이 없던 프로세스는 10회에 한 번만 다시 시도한다.
+		// Retry processes that were denied only once every 10 ticks.
 		if t, ok := s.denied[pid]; ok && s.tick-t < 10 {
 			denied[pid] = t
 			hidden++
@@ -455,8 +455,8 @@ func sub(a, b C.uint64_t) uint64 {
 	return uint64(a - b)
 }
 
-// fullName 은 잘리지 않은 프로세스 이름을 돌려준다.
-// proc_name 이 경로의 파일 이름 앞부분과 같으면 경로의 파일 이름을 쓴다.
+// fullName returns the untruncated process name.
+// If proc_name is a prefix of the executable's file name, the file name is used.
 func fullName(pid int, short string) string {
 	var buf [4096]C.char
 	if C.proc_path(C.int(pid), &buf[0], C.int(len(buf))) <= 0 {

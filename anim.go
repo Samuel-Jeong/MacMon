@@ -7,19 +7,19 @@ import (
 	tea "github.com/charmbracelet/bubbletea"
 )
 
-// 부드러운 화면
+// Smooth animation
 //
-// 숫자와 막대를 나눠서 다룬다.
-//   - 숫자: 갱신 주기(기본 1초) 평균. 1초에 한 번만 바뀌어 읽기 편하다.
-//   - 막대 · 그래프: CPU 를 주기의 1/4 마다 따로 재고(비용이 거의 없다),
-//     막대는 새 값까지 초당 20프레임으로 미끄러지듯 따라간다.
-// 프로세스 순서는 몇 초 평균으로 정해 순위가 덜 뒤섞이게 한다.
+// Numbers and bars are handled separately.
+//   - Numbers: averaged over the refresh interval (1 s by default), so they change once per interval and stay readable.
+//   - Bars and graphs: CPU is sampled separately every quarter interval (nearly free),
+//     and bars glide toward each new value at 20 frames per second.
+// Process order uses a few seconds' average so rows do not reshuffle every second.
 
 const (
 	frameDur = 50 * time.Millisecond
-	easeTau  = 0.2 // 초. 새 값과의 차이가 이 시간마다 약 1/3 로 준다.
-	histEMA  = 0.5 // 그래프 값의 흔들림을 줄이는 비율
-	procEMA  = 0.4 // 프로세스 정렬용 평균에 새 값을 섞는 비율
+	easeTau  = 0.2 // seconds; the gap to the target shrinks to about 1/3 every tau
+	histEMA  = 0.5 // smoothing factor for graph values
+	procEMA  = 0.4 // weight of the new sample in the process sort average
 )
 
 type cpuTickMsg time.Time
@@ -33,13 +33,13 @@ func frame() tea.Cmd {
 	return tea.Tick(frameDur, func(t time.Time) tea.Msg { return frameMsg(t) })
 }
 
-// cpuPeriod 는 막대용 CPU 측정 간격이다.
+// cpuPeriod is the CPU sampling interval used for bars.
 func (m model) cpuPeriod() time.Duration {
 	d := m.interval() / 4
 	return max(100*time.Millisecond, min(500*time.Millisecond, d))
 }
 
-// sampleFast 는 막대 · 그래프용 CPU 값을 새로 잰다.
+// sampleFast takes a new CPU sample for bars and graphs.
 func (m *model) sampleFast() {
 	cores, total, err := m.fastS.sample()
 	if err != nil || len(cores) == 0 {
@@ -63,20 +63,20 @@ func (m *model) sampleFast() {
 			m.coreHist[i] = push(m.coreHist[i], m.emaCores[i])
 		}
 	}
-	// 프로세스 탭에는 움직이는 막대가 없으니 프레임을 돌리지 않는다.
+	// The process screen has no moving bars, so skip the frame loop there.
 	if !m.smooth || m.tab == tabProcs {
 		m.settle()
 	}
 }
 
-// settle 은 막대를 목표값으로 바로 옮긴다.
+// settle snaps bars to their target values.
 func (m *model) settle() {
 	m.dTotal = m.fTotal
 	m.dCores = append(m.dCores[:0], m.fCores...)
 	m.dMem = memVec(m.mem)
 }
 
-// startAnim 은 프레임 루프가 멈춰 있으면 다시 돌린다.
+// startAnim restarts the frame loop if it is idle.
 func (m *model) startAnim() tea.Cmd {
 	if !m.smooth || m.animating || m.tab == tabProcs {
 		return nil
@@ -86,7 +86,7 @@ func (m *model) startAnim() tea.Cmd {
 	return frame()
 }
 
-// step 은 막대 값을 목표값 쪽으로 dt 만큼 옮기고, 아직 움직이는 중인지 돌려준다.
+// step moves bar values toward their targets by dt and reports whether anything is still moving.
 func (m *model) step(dt float64) bool {
 	a := 1 - math.Exp(-dt/easeTau)
 	moving := false
@@ -112,17 +112,17 @@ func (m *model) step(dt float64) bool {
 	}
 	tgt := memVec(m.mem)
 	for i := range m.dMem {
-		ease(&m.dMem[i], tgt[i], 1<<20) // 1 MB 안이면 멈춘다
+		ease(&m.dMem[i], tgt[i], 1<<20) // stop once within 1 MB
 	}
 	return moving
 }
 
-// memVec 은 메모리 막대에 쓰는 값(앱, 고정, 압축, 캐시, 스왑)이다.
+// memVec holds the values drawn in the memory bars (app, wired, compressed, cached, swap).
 func memVec(mi MemInfo) [5]float64 {
 	return [5]float64{float64(mi.App), float64(mi.Wired), float64(mi.Compressed), float64(mi.Cached), float64(mi.SwapUsed)}
 }
 
-// smoothProcs 는 정렬용 평균을 갱신한다. 숫자 자체는 그대로 둔다.
+// smoothProcs updates the averages used for sorting. Displayed numbers are left as is.
 func (m *model) smoothProcs() {
 	next := make(map[int][3]float64, len(m.procs))
 	for i := range m.procs {

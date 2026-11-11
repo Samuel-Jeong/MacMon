@@ -14,12 +14,12 @@ import (
 	"github.com/muesli/termenv"
 )
 
-// ---- 빠른 색칠 ----
-// lipgloss.Style.Render 는 칸 하나에 쓰기엔 무겁다. 막대 · 그래프처럼 칸이 많은 곳은
-// 색 조합별 이스케이프 코드를 한 번만 만들어 두고 재사용한다.
+// ---- Fast painting ----
+// lipgloss.Style.Render is too heavy for single cells. For bars and graphs, which have many cells,
+// build the escape sequence for each color combination once and reuse it.
 
 type pen struct {
-	fg, bg string // "#RRGGBB" 또는 ""
+	fg, bg string // "#RRGGBB" or empty
 	bold   bool
 }
 
@@ -99,11 +99,11 @@ var (
 	sBold   = lipgloss.NewStyle().Foreground(cText).Bold(true)
 )
 
-// 0% → 100% 색 띠를 미리 101칸 만들어 둔다.
+// Precompute a 101-step color ramp for 0% to 100%.
 var grad [101]lipgloss.Color
 
 func init() {
-	hexes := []string{"#89DDFF", "#C3E88D", "#FFCB6B", "#F07178"} // 하늘 → 연두 → 호박 → 산호
+	hexes := []string{"#89DDFF", "#C3E88D", "#FFCB6B", "#F07178"} // sky -> lime -> amber -> coral
 	stops := make([]colorful.Color, len(hexes))
 	for i, h := range hexes {
 		stops[i], _ = colorful.Hex(h)
@@ -126,7 +126,7 @@ func gradAt(t float64) lipgloss.Color { return grad[int(math.Round(clamp(t, 0, 1
 var hBlocks = []rune(" ▏▎▍▌▋▊▉█")
 var vBlocks = []rune(" ▁▂▃▄▅▆▇█")
 
-// bar 는 가는 선 막대다. 반 칸 단위로 채우고, 칸 위치에 따라 색이 바뀐다. 빈 곳은 흐린 선이다.
+// bar draws a thin line meter. It fills in half-cell steps, colors each cell by position, and draws the empty part as a dim line.
 func bar(pct float64, w int) string {
 	if w <= 0 {
 		return ""
@@ -151,7 +151,7 @@ type segment struct {
 	color lipgloss.TerminalColor
 }
 
-// segBar 는 여러 구간을 이어 붙인 가는 선 막대다. 남는 칸은 흐린 선으로 둔다.
+// segBar draws a thin line made of several colored segments. The rest is a dim line.
 func segBar(total uint64, segs []segment, w int) string {
 	if w <= 0 || total == 0 {
 		return ""
@@ -173,7 +173,7 @@ func segBar(total uint64, segs []segment, w int) string {
 	return b.String()
 }
 
-// graph 는 0~100 값의 이력을 h줄 높이의 막대 그래프로 그린다. 왼쪽에 눈금이 붙는다.
+// graph draws a history of 0-100 values as an h-row bar chart with a scale on the left.
 func graph(vals []float64, w, h int) []string {
 	const axisW = 5
 	gw := w - axisW
@@ -187,7 +187,7 @@ func graph(vals []float64, w, h int) []string {
 
 	lines := make([]string, h)
 	for r := 0; r < h; r++ {
-		level := h - 1 - r // 0 = 맨 아래 줄
+		level := h - 1 - r // 0 = bottom row
 		var row strings.Builder
 		row.WriteString(strings.Repeat(" ", pad))
 		for _, v := range vals {
@@ -218,8 +218,8 @@ func graph(vals []float64, w, h int) []string {
 	return lines
 }
 
-// box 는 제목이 위 테두리에 박힌 둥근 상자다. w 는 테두리를 포함한 전체 폭이다.
-// 프레임마다 그리므로 lipgloss 를 거치지 않고 직접 만든다. 폭을 넘는 줄만 줄바꿈한다.
+// box draws a rounded box with the title in the top border. w is the total width including the border.
+// It is drawn every frame, so it is built directly instead of through lipgloss. Only lines that are too wide get wrapped.
 func box(title, right, body string, w int) string {
 	inner := w - 2
 	t := " " + title + " "
@@ -249,8 +249,8 @@ func box(title, right, body string, w int) string {
 	return b.String()
 }
 
-// textWidth 는 색 코드를 빼고 화면에 차지하는 칸 수를 센다.
-// lipgloss.Width 보다 훨씬 가볍다(글자 묶음 분석을 하지 않는다).
+// textWidth counts the terminal cells a string occupies, ignoring color codes.
+// It is much cheaper than lipgloss.Width (no grapheme clustering).
 func textWidth(s string) int {
 	w := 0
 	for i := 0; i < len(s); {
@@ -292,7 +292,7 @@ func padRight(s string, w int) string {
 	return s
 }
 
-// spread 는 왼쪽·오른쪽 글을 폭 w 의 양 끝에 붙인다.
+// spread places left and right text at the two ends of width w.
 func spread(left, right string, w int) string {
 	gap := w - textWidth(left) - textWidth(right)
 	if gap < 1 {
@@ -311,15 +311,15 @@ func fmtUptime(d time.Duration) string {
 	mins := int(d.Minutes()) % 60
 	switch {
 	case days > 0:
-		return fmt.Sprintf("%d일 %d시간", days, hours)
+		return fmt.Sprintf("%dd %dh", days, hours)
 	case hours > 0:
-		return fmt.Sprintf("%d시간 %d분", hours, mins)
+		return fmt.Sprintf("%dh %dm", hours, mins)
 	default:
-		return fmt.Sprintf("%d분", mins)
+		return fmt.Sprintf("%dm", mins)
 	}
 }
 
-// spark 는 한 줄짜리 이력 그래프다. 칸마다 값에 맞는 색을 쓴다.
+// spark draws a one-row history graph, coloring each cell by its value.
 func spark(vals []float64, w int) string {
 	if w <= 0 {
 		return ""
@@ -359,7 +359,7 @@ func fmtBytes(b uint64) string {
 
 func fmtMHz(mhz float64) string {
 	if mhz <= 0 {
-		return "유휴"
+		return "idle"
 	}
 	return fmt.Sprintf("%.2f GHz", mhz/1000)
 }
@@ -367,11 +367,11 @@ func fmtMHz(mhz float64) string {
 func fmtDur(d time.Duration) string {
 	switch {
 	case d >= time.Hour:
-		return fmt.Sprintf("%d시간 %d분", int(d.Hours()), int(d.Minutes())%60)
+		return fmt.Sprintf("%dh %dm", int(d.Hours()), int(d.Minutes())%60)
 	case d >= time.Minute:
-		return fmt.Sprintf("%d분 %d초", int(d.Minutes()), int(d.Seconds())%60)
+		return fmt.Sprintf("%dm %ds", int(d.Minutes()), int(d.Seconds())%60)
 	}
-	return fmt.Sprintf("%.1f초", d.Seconds())
+	return fmt.Sprintf("%.1fs", d.Seconds())
 }
 
 func fmtPower(mw float64) string {

@@ -30,7 +30,7 @@ const (
 	tabProcs
 )
 
-var tabNames = []string{"개요", "코어", "프로세스"}
+var tabNames = []string{"Overview", "Cores", "Processes"}
 
 type sortKey int
 
@@ -45,18 +45,18 @@ const (
 	sortCount
 )
 
-var sortNames = []string{"CPU", "P 코어", "E 코어", "메모리", "전력", "PID", "이름"}
+var sortNames = []string{"CPU", "P-core", "E-core", "memory", "power", "PID", "name"}
 
 type tickMsg time.Time
 
-// layoutState 는 View 에서 정한 스크롤 범위를 Update 가 쓸 수 있게 공유한다.
+// layoutState shares layout facts computed in View (such as scroll limits) with Update.
 type layoutState struct {
 	maxScroll int
 	procOff   int
 	procRows  int
 	topRows   int
 
-	// 1초에 한 번만 바뀌는 부분(프로세스 표 등)을 그려 둔 결과. ver 이 바뀌면 비운다.
+	// Rendered parts that change only once per interval (process table, ...). Cleared when ver changes.
 	cacheVer int
 	cache    map[string]string
 }
@@ -66,15 +66,15 @@ type model struct {
 	cpuS  cpuSampler
 	procS *procSampler
 
-	cores []Usage // 숫자용(갱신 주기 평균)
+	cores []Usage // for numbers (averaged over the refresh interval)
 	total Usage
 	freqs []CoreFreq
 
-	// 막대 · 그래프용 (anim.go)
+	// for bars and graphs (anim.go)
 	fastS     cpuSampler
-	fTotal    Usage // 목표값
+	fTotal    Usage // target values
 	fCores    []Usage
-	dTotal    Usage // 화면에 그리는 값
+	dTotal    Usage // values currently drawn
 	dCores    []Usage
 	dMem      [5]float64
 	emaTotal  float64
@@ -105,13 +105,13 @@ type model struct {
 
 	width, height int
 	lay           *layoutState
-	ver           int // 프로세스 목록 · 선택 · 크기가 바뀔 때마다 올린다
+	ver           int // bumped whenever the process list, selection, or size changes
 }
 
 func newModel() model {
 	m := model{info: loadCPUInfo(), procS: newProcSampler(), ivIdx: 2, lay: &layoutState{}, smooth: true, procEMA: map[int][3]float64{}}
 	m.coreHist = make([][]float64, m.info.Logical)
-	m.cpuS.sample() // 첫 기준값
+	m.cpuS.sample() // first baseline
 	m.fastS.sample()
 	m.procS.sample()
 	return m
@@ -157,8 +157,8 @@ func (m *model) refresh() {
 	m.refreshTabData()
 }
 
-// refreshTabData 는 지금 탭에 필요한 것만 모은다.
-// 주파수(IOReport)와 프로세스 목록이 수집 비용의 대부분이라, 안 보이는 탭에서는 건너뛴다.
+// refreshTabData collects only what the current screen needs.
+// Frequencies (IOReport) and the process list are most of the cost, so they are skipped when not on screen.
 func (m *model) refreshTabData() {
 	if m.tab != tabProcs {
 		if f := sampleFreq(); len(f) == m.info.Logical {
@@ -175,9 +175,9 @@ func (m *model) refreshTabData() {
 	}
 }
 
-// fillThreads 는 화면에 보일 줄의 스레드 수만 읽는다.
+// fillThreads reads thread counts only for rows that will be visible.
 func (m *model) fillThreads() {
-	lo, hi := 0, m.lay.topRows
+	lo, hi := 0, max(m.lay.topRows, 20) // row count is unknown before the first render
 	if m.tab == tabProcs {
 		rows := max(m.lay.procRows, 10)
 		lo, hi = m.sel-rows, m.sel+rows
@@ -338,7 +338,7 @@ func (m model) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 }
 
 func main() {
-	snap := flag.String("snapshot", "", "화면을 한 번 그려 출력하고 끝낸다. 예: -snapshot 120x45")
+	snap := flag.String("snapshot", "", "render each screen once and exit, e.g. -snapshot 120x45")
 	flag.Parse()
 	if *snap != "" {
 		snapshot(*snap)
@@ -351,26 +351,26 @@ func main() {
 			defer pprof.StopCPUProfile()
 		}
 	}
-	// 프레임마다 짧게 쓰고 버리는 메모리가 많아, GC 와 메모리 반납 횟수를 줄인다.
+	// Each frame allocates short-lived memory, so run GC and return memory to the OS less often.
 	debug.SetGCPercent(400)
 	runewidth.DefaultCondition.EastAsianWidth = false
 	p := tea.NewProgram(newModel(), tea.WithAltScreen(), tea.WithFPS(20))
 	if _, err := p.Run(); err != nil {
-		fmt.Fprintln(os.Stderr, "오류:", err)
+		fmt.Fprintln(os.Stderr, "error:", err)
 		pprof.StopCPUProfile()
 		os.Exit(1)
 	}
 }
 
-// snapshot 은 세 화면을 차례로 그려 표준 출력에 쓴다.
+// snapshot renders all three screens to stdout.
 func snapshot(size string) {
 	var w, h int
 	if _, err := fmt.Sscanf(size, "%dx%d", &w, &h); err != nil {
-		fmt.Fprintln(os.Stderr, "크기는 120x45 처럼 적어 주세요")
+		fmt.Fprintln(os.Stderr, "size must look like 120x45")
 		os.Exit(2)
 	}
 	if os.Getenv("CLICOLOR_FORCE") != "" {
-		lipgloss.SetColorProfile(termenv.TrueColor) // 색 확인용
+		lipgloss.SetColorProfile(termenv.TrueColor) // for checking colors
 	}
 	m := newModel()
 	m.width, m.height = w, h
